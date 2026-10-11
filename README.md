@@ -18,6 +18,10 @@ ComfyUI 跑完一個 workflow 之後，模型會一直留在顯示卡上，直�
 
 ## 安裝
 
+**用 ComfyUI-Manager**：在 Manager 的 Custom Nodes 搜尋 `idle-free`，按 Install，再重啟 ComfyUI。
+
+**手動安裝**：
+
 ```sh
 cd ComfyUI/custom_nodes
 git clone https://github.com/mcc1/comfyui-idle-free.git

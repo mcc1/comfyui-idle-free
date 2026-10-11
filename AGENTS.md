@@ -17,6 +17,9 @@
   - `_start()`：註冊 route、啟動 thread。模組被 import 時自動執行。
 - `web/idle_free.js`：前端擴充，在 Settings 裡註冊四個設定（`IdleFree.Enabled`、`IdleFree.IdleMinutes`、`IdleFree.PollSeconds`、`IdleFree.ClearCache`）。這些 id 必須和 `__init__.py` 裡的 `S_*` 常數一致。
 - `test_idle_free.py`：測試，用 stub 取代 ComfyUI，不需要 torch 或 GPU。
+- `pyproject.toml`：Comfy Registry 的上架資訊（publisher `mcc`、節點名稱 `comfyui-idle-free`）。節點名稱上架後不能改。
+- `.comfyignore`：發布到 Registry 時排除的開發用檔案。
+- `.github/workflows/publish_action.yml`：main 上的 `pyproject.toml` 有變動時，自動發布到 Comfy Registry。需要 repo secret `REGISTRY_ACCESS_TOKEN`。
 
 ## 執行測試
 
@@ -76,3 +79,9 @@ python3 test_idle_free.py
 7. 還原 `comfy.settings.json`，確認 log 出現回到預設值的 `settings changed`。
 
 `POST /settings/<id>` 是 ComfyUI 前端自己存設定用的 API（`app/app_settings.py`），用它改值和在畫面上改的效果一樣。
+
+## 發布新版
+
+1. 改好程式並通過上面的測試和手動驗證。
+2. 把 `pyproject.toml` 的 `version` 往上調（semver：修 bug 調 patch，新增設定或行為調 minor）。
+3. 合併到 main 後，GitHub Actions 會自動發布到 Comfy Registry。只改程式、沒調版本號不會發布。
