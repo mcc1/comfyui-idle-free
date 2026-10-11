@@ -57,7 +57,21 @@ python3 test_idle_free.py
 
 - 測試透過 `importlib` 重新載入 `__init__.py`，用環境變數控制行為。
 - `_stub_comfy()` 會建一個暫存的 user 目錄，可以傳 `settings` 寫入 `comfy.settings.json`，回傳該檔路徑；測試中途改寫它，就能模擬使用者在設定畫面改值。
-- 前端 JS 沒有自動化測試。改了 `web/idle_free.js` 之後，要在真的 ComfyUI 裡打開 Settings → Idle Free 確認。
+- 前端 JS 沒有自動化測試。改了 `web/idle_free.js` 或設定相關的 Python 之後，要在真的 ComfyUI 上手動驗證，見下一節。
 - 只測 `IdleWatch` 時，設定 `COMFYUI_IDLE_FREE_NO_AUTOSTART=1`，避免 import 時啟動 thread。
 - 要測 thread 時，先用 `_stub_comfy()` 把假的 `server` 和 `comfy.model_management` 塞進 `sys.modules`，再用很短的秒數（例如 0.3 秒）載入。
 - 新增行為時，先在 `IdleWatch` 層加單元測試，需要時再加 thread 層的測試。
+
+## 在真的 ComfyUI 上驗證
+
+改了設定相關的程式碼後，在一台跑著的 ComfyUI 上依序確認（`$C` 代表 `http://127.0.0.1:8188`）：
+
+1. 重啟 ComfyUI 後，log 有 `comfyui-idle-free` 的啟動訊息（例如 `unloading models after 3600s idle ...`），而且沒有 `IMPORT FAILED`。
+2. `curl $C/idle-free/defaults` 回傳的預設值和環境變數一致。
+3. `curl $C/extensions` 列出 `/extensions/comfyui-idle-free/idle_free.js`。
+4. 先備份 `ComfyUI/user/default/comfy.settings.json`，再用 `curl -X POST $C/settings/IdleFree.IdleMinutes -d 2` 模擬在設定畫面改值。30 秒內 log 應出現 `settings changed: ...`。
+5. 跑一個跑完會把模型留在卡上的 workflow（例如 SDXL），閒置時間過後 log 應出現 `idle for ... unloading`，`nvidia-smi` 看得到 VRAM 降下來。
+6. 用瀏覽器（或 headless 瀏覽器）打開 Settings，確認 Idle Free 的三個設定都有顯示，值和 `comfy.settings.json` 一致。
+7. 還原 `comfy.settings.json`，確認 log 出現回到預設值的 `settings changed`。
+
+`POST /settings/<id>` 是 ComfyUI 前端自己存設定用的 API（`app/app_settings.py`），用它改值和在畫面上改的效果一樣。

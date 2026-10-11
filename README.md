@@ -31,9 +31,18 @@ unloading models after 3600s idle (poll 30s, node cache kept)
 
 不需要安裝任何額外的 Python 套件。
 
+### 更新
+
+```sh
+cd ComfyUI/custom_nodes/comfyui-idle-free
+git pull
+```
+
+接著重啟 ComfyUI。設定畫面裡改過的值會保留。
+
 ## 設定
 
-打開 ComfyUI 的 **Settings（齒輪）→ Idle Free**：
+打開 ComfyUI 的 **Settings（齒輪）**，在左欄「Other（其他）」底下找到 **Idle Free**，或直接在設定的搜尋框輸入 `idle`：
 
 | 設定 | 預設值 | 說明 |
 |---|---|---|
@@ -59,11 +68,14 @@ unloading models after 3600s idle (poll 30s, node cache kept)
 
 ## 實測結果
 
-以下是在 RTX 3060 12GB 上和一個 embedding 服務共用同一張卡時的測試結果：
+以下是在 RTX 3060 12GB 上，和一個 embedding 服務共用同一張卡時的測試結果：
 
-- SDXL workflow 跑完後，ComfyUI 佔 4784 MiB。閒置時間到了以後，node 觸發卸載，ComfyUI 降到 304 MiB。
-- 保留節點快取（預設）時，卸載後還會留幾百 MiB。設定 `COMFYUI_IDLE_FREE_CACHE=1` 可以再降一些。
+- 在設定畫面把閒置時間改成 2 分鐘，12 秒後 log 就出現 `settings changed: unloading models after 120s idle ...`，不需要重啟。
+- SDXL workflow 跑完後，ComfyUI 佔 4814 MiB。閒置 2 分鐘後 node 觸發卸載，ComfyUI 降到 270 MiB，釋放約 4.5 GB。同一張卡上的 embedding 服務沒有受影響。
+- 在設定畫面關掉 Enabled，3 秒後 log 出現 `settings changed: disabled`。
+- 保留節點快取（預設）時，卸載後還會留幾百 MiB。打開 Clear cache 可以再降一些。
 - 有些模型（例如啟用 CPU offload 的 Nunchaku）跑完本來就會自己釋放 VRAM。這種情況卡上沒有模型，node 就不會觸發，這是預期行為。
+- 有裝 ComfyUI-Manager 時，瀏覽器 console 可能出現 `[ConflictDetection] No Registry data found for mcc1/comfyui-idle-free`。這只是因為還沒上架 Comfy Registry，不影響功能。
 
 ## 測試
 
