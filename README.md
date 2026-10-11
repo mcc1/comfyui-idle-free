@@ -6,12 +6,12 @@ ComfyUI 跑完一個 workflow 之後，模型會一直留在顯示卡上，直�
 
 這個 custom node 補上 ComfyUI 缺少的閒置逾時機制。只要佇列空了一段時間（預設 1 小時），它就做和 `POST /free {"unload_models": true}` 一樣的事。
 
-> English: a ComfyUI custom node that unloads models from VRAM after the prompt queue has been idle for a while (default 1 hour), the same thing `POST /free {"unload_models": true}` does. Configure it with the environment variables below.
+> English: a ComfyUI custom node that unloads models from VRAM after the prompt queue has been idle for a while (default 1 hour), the same thing `POST /free {"unload_models": true}` does. Configure it in Settings > Idle Free; changes apply without a restart.
 
 ## 運作方式
 
-- 不會在節點清單裡新增任何節點。載入套件時只會啟動一個背景 daemon thread。
-- 每 `COMFYUI_IDLE_FREE_POLL` 秒檢查一次 prompt queue。如果超過 `COMFYUI_IDLE_FREE_SECONDS` 秒沒有任何工作在跑或在排隊，而且卡上確實載入了模型，它就會設定 `unload_models` flag。
+- 不會在節點清單裡新增任何節點。載入套件時會啟動一個背景 daemon thread，並在 ComfyUI 的設定畫面加上「Idle Free」分類。
+- 每隔一段時間（預設 30 秒）檢查一次 prompt queue。如果超過設定的閒置時間都沒有工作在跑或在排隊，而且卡上確實載入了模型，它就會設定 `unload_models` flag。
 - 實際的卸載由 ComfyUI 自己的 prompt worker 執行，所以不會打斷正在跑的工作。閒置期間如果有新的 prompt 進來，會先跑完那個 prompt，閒置計時也會重新開始。
 - 每段閒置期間只觸發一次，不會每次輪詢都重複卸載。
 - 下一次跑 workflow 時，模型會從硬碟（或 page cache）重新載入，多花幾秒鐘。
@@ -33,23 +33,29 @@ unloading models after 3600s idle (poll 30s, node cache kept)
 
 ## 設定
 
-設定都透過環境變數，在 ComfyUI 啟動時讀取一次。
+打開 ComfyUI 的 **Settings（齒輪）→ Idle Free**：
+
+| 設定 | 預設值 | 說明 |
+|---|---|---|
+| Enabled | 開 | 是否在閒置時卸載模型。 |
+| Idle minutes | 60 | 閒置幾分鐘後卸載。 |
+| Clear cache | 關 | 連節點輸出快取一起清掉（等同 `free_memory` flag），會多釋放幾百 MB 的 VRAM 和一些 RAM，但下次跑同一個 workflow 時每個節點都要重算。 |
+
+改完**不需要重啟** ComfyUI，下一次輪詢（最多 30 秒）就會生效，log 會出現 `settings changed: ...`。
+
+### 用環境變數設定預設值（選用）
+
+沒有開瀏覽器的伺服器，或想統一部署時，可以用環境變數設定預設值。只要在設定畫面改過某一項，就以設定畫面的值為準。
 
 | 環境變數 | 預設值 | 說明 |
 |---|---|---|
-| `COMFYUI_IDLE_FREE_SECONDS` | `3600` | 閒置多少秒後卸載。設為 `0` 會停用這個 node。 |
-| `COMFYUI_IDLE_FREE_POLL` | `30` | 每隔幾秒檢查一次佇列。 |
-| `COMFYUI_IDLE_FREE_CACHE` | `0` | 設為 `1` 時連節點輸出快取一起清掉（等同 `free_memory` flag），會多釋放一些 VRAM 和 RAM，但下次跑同一個 workflow 時每個節點都要重算。 |
+| `COMFYUI_IDLE_FREE_SECONDS` | `3600` | 閒置秒數。設為 `0` 代表預設關閉（之後仍可在設定畫面打開）。 |
+| `COMFYUI_IDLE_FREE_POLL` | `30` | 每隔幾秒檢查一次佇列。只能用環境變數設定。 |
+| `COMFYUI_IDLE_FREE_CACHE` | `0` | 設為 `1` 代表預設連快取一起清。 |
 
-用 systemd 跑 ComfyUI 的話，可以加一個 drop-in：
+### 多使用者模式
 
-```ini
-# ~/.config/systemd/user/comfyui.service.d/idle-free.conf
-[Service]
-Environment=COMFYUI_IDLE_FREE_SECONDS=1800
-```
-
-在 Windows 上，可以在啟動 ComfyUI 的 `.bat` 裡加一行 `set COMFYUI_IDLE_FREE_SECONDS=1800`。
+設定畫面的值存在 `ComfyUI/user/default/comfy.settings.json`。用 `--multi-user` 啟動時，這個 node 只會讀 `default` 使用者的設定，其他使用者在設定畫面改的值不會生效。
 
 ## 實測結果
 
