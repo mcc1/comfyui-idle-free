@@ -1,0 +1,4 @@
+# Development-only files left out of the registry archive
+test_idle_free.py
+AGENTS.md
+.github/

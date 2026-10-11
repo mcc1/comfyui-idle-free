@@ -1,0 +1,18 @@
+[project]
+name = "comfyui-idle-free"
+version = "1.0.0"
+description = "Unloads ComfyUI's models from VRAM after the queue has been idle for a while, so other programs on the same GPU get the memory back. Configure it in Settings > Idle Free."
+license = { file = "LICENSE" }
+requires-python = ">=3.9"
+dependencies = []
+classifiers = [
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Repository = "https://github.com/mcc1/comfyui-idle-free"
+"Bug Tracker" = "https://github.com/mcc1/comfyui-idle-free/issues"
+
+[tool.comfy]
+PublisherId = "mcc"
+DisplayName = "Idle Free (auto-unload VRAM when idle)"
