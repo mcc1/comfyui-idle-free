@@ -152,18 +152,25 @@ def test_settings_override_env_defaults():
     assert got == node.Config(False, 900, True), vars(got)
     for bad in ({"IdleFree.IdleMinutes": 0}, {"IdleFree.IdleMinutes": -5},
                 {"IdleFree.IdleMinutes": "10"}, {"IdleFree.IdleMinutes": True},
-                {"IdleFree.Enabled": "no"}):
+                {"IdleFree.Enabled": "no"}, {"IdleFree.PollSeconds": 0},
+                {"IdleFree.PollSeconds": "5"}):
         assert node.merge_settings(bad, base) == base, bad
+    assert node.merge_settings({"IdleFree.PollSeconds": 10}, base).poll_seconds == 10
+    assert node.merge_settings({"IdleFree.PollSeconds": 0.01}, base).poll_seconds == 1, \
+        "a tiny interval would spin the thread"
+    assert node.merge_settings({"IdleFree.PollSeconds": 99999}, base).poll_seconds == 3600
     print("ok  UI settings win over env; untouched or bad values keep the default")
 
 
 def test_env_zero_means_disabled_by_default():
     n = _import_node(COMFYUI_IDLE_FREE_NO_AUTOSTART="1", COMFYUI_IDLE_FREE_SECONDS="0")
     assert n.env_config().enabled is False
-    assert n.defaults_json() == {"enabled": False, "idle_minutes": 60, "clear_cache": False}
+    assert n.defaults_json() == {"enabled": False, "idle_minutes": 60, "clear_cache": False,
+                                "poll_seconds": 30}
     n = _import_node(COMFYUI_IDLE_FREE_NO_AUTOSTART="1", COMFYUI_IDLE_FREE_SECONDS="1800",
-                     COMFYUI_IDLE_FREE_CACHE="1")
-    assert n.defaults_json() == {"enabled": True, "idle_minutes": 30, "clear_cache": True}
+                     COMFYUI_IDLE_FREE_CACHE="1", COMFYUI_IDLE_FREE_POLL="10")
+    assert n.defaults_json() == {"enabled": True, "idle_minutes": 30, "clear_cache": True,
+                                 "poll_seconds": 10}
     print("ok  env gives the UI its defaults; SECONDS=0 means off until enabled in the UI")
 
 
@@ -190,7 +197,7 @@ def test_defaults_route_feeds_the_ui():
     _import_node(COMFYUI_IDLE_FREE_SECONDS="600", COMFYUI_IDLE_FREE_POLL="0.05")
     handler = _stub_comfy.routes.handlers["/idle-free/defaults"]
     assert asyncio.run(handler(None)) == {"enabled": True, "idle_minutes": 10,
-                                          "clear_cache": False}
+                                          "clear_cache": False, "poll_seconds": 0.05}
     print("ok  GET /idle-free/defaults returns the env defaults for the settings UI")
 
 

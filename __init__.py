@@ -8,7 +8,7 @@ been empty for the configured idle time, it raises the same flag as
 `POST /free {"unload_models": true}`.
 
 It adds no nodes to the graph; loading the package starts one daemon thread
-and registers three entries in ComfyUI's Settings dialog (web/idle_free.js).
+and registers four entries in ComfyUI's Settings dialog (web/idle_free.js).
 The unload itself still runs on ComfyUI's prompt worker (that is what the flag
 does), so it never races a job: a prompt queued in the meantime simply runs
 first, and resets the idle clock.
@@ -21,6 +21,7 @@ restart:
 - IdleFree.ClearCache    also drop the node output cache (the "free_memory"
                          flag, frees RAM too; the next run of an unchanged
                          workflow recomputes everything)
+- IdleFree.PollSeconds   seconds between queue checks
 
 Env, read once at startup, gives the defaults for a setting nobody has changed
 in the UI (handy for headless installs):
@@ -39,22 +40,27 @@ NODE_DISPLAY_NAME_MAPPINGS = {}
 WEB_DIRECTORY = "./web"
 
 ENV_IDLE_SECONDS = float(os.environ.get("COMFYUI_IDLE_FREE_SECONDS", "3600"))
-POLL_SECONDS = float(os.environ.get("COMFYUI_IDLE_FREE_POLL", "30"))
+ENV_POLL_SECONDS = float(os.environ.get("COMFYUI_IDLE_FREE_POLL", "30"))
 ENV_FREE_CACHE = os.environ.get("COMFYUI_IDLE_FREE_CACHE", "0") == "1"
 
 # Setting ids; must match web/idle_free.js.
 S_ENABLED = "IdleFree.Enabled"
 S_MINUTES = "IdleFree.IdleMinutes"
 S_CACHE = "IdleFree.ClearCache"
+S_POLL = "IdleFree.PollSeconds"
+
+POLL_MIN, POLL_MAX = 1.0, 3600.0   # UI bounds; 0 would spin the thread
 
 log = logging.getLogger("comfyui-idle-free")
 
 
 class Config:
-    def __init__(self, enabled: bool, idle_seconds: float, free_cache: bool):
+    def __init__(self, enabled: bool, idle_seconds: float, free_cache: bool,
+                 poll_seconds: float = 30.0):
         self.enabled = enabled
         self.idle_seconds = idle_seconds
         self.free_cache = free_cache
+        self.poll_seconds = poll_seconds
 
     def __eq__(self, other):
         return vars(self) == vars(other)
@@ -63,12 +69,12 @@ class Config:
         if not self.enabled:
             return "disabled"
         return "unloading models after %.0fs idle (poll %.0fs, node cache %s)" % (
-            self.idle_seconds, POLL_SECONDS, "too" if self.free_cache else "kept")
+            self.idle_seconds, self.poll_seconds, "too" if self.free_cache else "kept")
 
 
 def env_config() -> Config:
     return Config(ENV_IDLE_SECONDS > 0, ENV_IDLE_SECONDS if ENV_IDLE_SECONDS > 0 else 3600,
-                  ENV_FREE_CACHE)
+                  ENV_FREE_CACHE, ENV_POLL_SECONDS if ENV_POLL_SECONDS > 0 else 30.0)
 
 
 def merge_settings(settings: dict, base: Config) -> Config:
@@ -82,7 +88,11 @@ def merge_settings(settings: dict, base: Config) -> Config:
         idle = float(minutes) * 60
     if isinstance(settings.get(S_CACHE), bool):
         cache = settings[S_CACHE]
-    return Config(enabled, idle, cache)
+    poll = base.poll_seconds
+    seconds = settings.get(S_POLL)
+    if isinstance(seconds, (int, float)) and not isinstance(seconds, bool) and seconds > 0:
+        poll = min(max(float(seconds), POLL_MIN), POLL_MAX)
+    return Config(enabled, idle, cache, poll)
 
 
 class SettingsFile:
@@ -158,7 +168,7 @@ def _watch() -> None:
     log.info(cfg.describe())
     w = IdleWatch(cfg.idle_seconds, time.monotonic())
     while True:
-        time.sleep(POLL_SECONDS)
+        time.sleep(cfg.poll_seconds)
         try:
             new = merge_settings(settings.read(), base)
             if new != cfg:
@@ -180,7 +190,7 @@ def _watch() -> None:
 def defaults_json() -> dict:
     base = env_config()
     return {"enabled": base.enabled, "idle_minutes": round(base.idle_seconds / 60, 2),
-            "clear_cache": base.free_cache}
+            "clear_cache": base.free_cache, "poll_seconds": base.poll_seconds}
 
 
 def _add_routes() -> None:

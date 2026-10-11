@@ -6,7 +6,7 @@ import { api } from "../../scripts/api.js";
 
 // Defaults come from the server so they match the COMFYUI_IDLE_FREE_* env
 // vars until someone changes a value here.
-let defaults = { enabled: true, idle_minutes: 60, clear_cache: false };
+let defaults = { enabled: true, idle_minutes: 60, clear_cache: false, poll_seconds: 30 };
 try {
     const res = await api.fetchApi("/idle-free/defaults");
     if (res.ok) defaults = { ...defaults, ...(await res.json()) };
@@ -35,7 +35,16 @@ app.registerExtension({
             type: "number",
             defaultValue: defaults.idle_minutes,
             attrs: { min: 1, max: 1440, step: 1, showButtons: true },
-            tooltip: "Counted from the end of the last job. Checked every poll interval (30 s by default).",
+            tooltip: "Counted from the end of the last job. The queue is checked every poll interval, so the actual unload can come up to one interval later.",
+        },
+        {
+            id: "IdleFree.PollSeconds",
+            category: [CATEGORY, SECTION, "Poll seconds"],
+            name: "Check the queue every (seconds)",
+            type: "number",
+            defaultValue: defaults.poll_seconds,
+            attrs: { min: 1, max: 3600, step: 1, showButtons: true },
+            tooltip: "How often the idle check runs. Shorter reacts sooner; the check itself is cheap. Setting changes are also picked up at this interval.",
         },
         {
             id: "IdleFree.ClearCache",

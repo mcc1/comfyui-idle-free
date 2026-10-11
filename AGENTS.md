@@ -15,7 +15,7 @@
   - `_watch()`：背景 thread 的主迴圈。每次輪詢都重讀設定，再讀 ComfyUI 的佇列和已載入模型數，該卸載時呼叫 `set_flag`。
   - `_add_routes()`：註冊 `GET /idle-free/defaults`，讓前端拿到環境變數算出來的預設值。
   - `_start()`：註冊 route、啟動 thread。模組被 import 時自動執行。
-- `web/idle_free.js`：前端擴充，在 Settings 裡註冊三個設定（`IdleFree.Enabled`、`IdleFree.IdleMinutes`、`IdleFree.ClearCache`）。這些 id 必須和 `__init__.py` 裡的 `S_*` 常數一致。
+- `web/idle_free.js`：前端擴充，在 Settings 裡註冊四個設定（`IdleFree.Enabled`、`IdleFree.IdleMinutes`、`IdleFree.PollSeconds`、`IdleFree.ClearCache`）。這些 id 必須和 `__init__.py` 裡的 `S_*` 常數一致。
 - `test_idle_free.py`：測試，用 stub 取代 ComfyUI，不需要 torch 或 GPU。
 
 ## 執行測試
@@ -50,6 +50,7 @@ python3 test_idle_free.py
 - **不在節點清單新增節點**。`NODE_CLASS_MAPPINGS` 必須存在（ComfyUI 需要它才會載入套件），但保持空的。
 - **只用標準函式庫**。不要加入 `requirements.txt` 的相依套件。
 - **設定以設定畫面為主，改了不用重啟**。每次輪詢重讀設定檔；環境變數只提供預設值。關閉時 thread 仍在跑，這樣在設定畫面打開就會立刻生效。
+- 設定畫面的檢查間隔限制在 1 到 3600 秒，避免背景 thread 空轉。環境變數 `COMFYUI_IDLE_FREE_POLL` 不受這個限制，測試會用很短的值。
 - 設定檔讀取失敗（不存在、寫到一半、格式錯）時不能讓 thread 出錯，也不能把設定重設成預設值以外的東西。
 - 背景 thread 裡的例外要記 log 後繼續下一輪，不能讓 thread 死掉。
 
@@ -71,7 +72,7 @@ python3 test_idle_free.py
 3. `curl $C/extensions` 列出 `/extensions/comfyui-idle-free/idle_free.js`。
 4. 先備份 `ComfyUI/user/default/comfy.settings.json`，再用 `curl -X POST $C/settings/IdleFree.IdleMinutes -d 2` 模擬在設定畫面改值。30 秒內 log 應出現 `settings changed: ...`。
 5. 跑一個跑完會把模型留在卡上的 workflow（例如 SDXL），閒置時間過後 log 應出現 `idle for ... unloading`，`nvidia-smi` 看得到 VRAM 降下來。
-6. 用瀏覽器（或 headless 瀏覽器）打開 Settings，確認 Idle Free 的三個設定都有顯示，值和 `comfy.settings.json` 一致。
+6. 用瀏覽器（或 headless 瀏覽器）打開 Settings，確認 Idle Free 的四個設定都有顯示，值和 `comfy.settings.json` 一致。
 7. 還原 `comfy.settings.json`，確認 log 出現回到預設值的 `settings changed`。
 
 `POST /settings/<id>` 是 ComfyUI 前端自己存設定用的 API（`app/app_settings.py`），用它改值和在畫面上改的效果一樣。

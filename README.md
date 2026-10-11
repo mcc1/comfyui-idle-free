@@ -11,7 +11,7 @@ ComfyUI 跑完一個 workflow 之後，模型會一直留在顯示卡上，直�
 ## 運作方式
 
 - 不會在節點清單裡新增任何節點。載入套件時會啟動一個背景 daemon thread，並在 ComfyUI 的設定畫面加上「Idle Free」分類。
-- 每隔一段時間（預設 30 秒）檢查一次 prompt queue。如果超過設定的閒置時間都沒有工作在跑或在排隊，而且卡上確實載入了模型，它就會設定 `unload_models` flag。
+- 每隔一段時間（預設 30 秒，可在設定畫面調整）檢查一次 prompt queue。如果超過設定的閒置時間都沒有工作在跑或在排隊，而且卡上確實載入了模型，它就會設定 `unload_models` flag。
 - 實際的卸載由 ComfyUI 自己的 prompt worker 執行，所以不會打斷正在跑的工作。閒置期間如果有新的 prompt 進來，會先跑完那個 prompt，閒置計時也會重新開始。
 - 每段閒置期間只觸發一次，不會每次輪詢都重複卸載。
 - 下一次跑 workflow 時，模型會從硬碟（或 page cache）重新載入，多花幾秒鐘。
@@ -48,9 +48,10 @@ git pull
 |---|---|---|
 | Enabled | 開 | 是否在閒置時卸載模型。 |
 | Idle minutes | 60 | 閒置幾分鐘後卸載。 |
+| Poll seconds | 30 | 每隔幾秒檢查一次佇列（1 到 3600）。實際卸載最多會比閒置時間晚一個間隔；設定的變更也是在下一次檢查時生效。 |
 | Clear cache | 關 | 連節點輸出快取一起清掉（等同 `free_memory` flag），會多釋放幾百 MB 的 VRAM 和一些 RAM，但下次跑同一個 workflow 時每個節點都要重算。 |
 
-改完**不需要重啟** ComfyUI，下一次輪詢（最多 30 秒）就會生效，log 會出現 `settings changed: ...`。
+改完**不需要重啟** ComfyUI，下一次檢查（預設最多 30 秒）就會生效，log 會出現 `settings changed: ...`。
 
 ### 用環境變數設定預設值（選用）
 
@@ -59,7 +60,7 @@ git pull
 | 環境變數 | 預設值 | 說明 |
 |---|---|---|
 | `COMFYUI_IDLE_FREE_SECONDS` | `3600` | 閒置秒數。設為 `0` 代表預設關閉（之後仍可在設定畫面打開）。 |
-| `COMFYUI_IDLE_FREE_POLL` | `30` | 每隔幾秒檢查一次佇列。只能用環境變數設定。 |
+| `COMFYUI_IDLE_FREE_POLL` | `30` | 預設每隔幾秒檢查一次佇列。 |
 | `COMFYUI_IDLE_FREE_CACHE` | `0` | 設為 `1` 代表預設連快取一起清。 |
 
 ### 多使用者模式
